@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: exilium-blog-backend-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: exilium_blog_backend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d  # Mount migrations here
+    ports:
+      - "5432:5432"
+    networks:
+      - exilium-blog-backend-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: exilium-blog-backend-api
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=exilium_blog_backend
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - exilium-blog-backend-network
+    command: >
+      sh -c "until pg_isready -h db -p 5432 -U user -d exilium_blog_backend; do
+               echo 'Waiting for PostgreSQL...';
+               sleep 2;
+             done;
+             echo 'PostgreSQL is ready';
+             ./exilium-blog-backend"
+
+  redis:
+    image: redis:7-alpine
+    container_name: exilium-blog-backend-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - exilium-blog-backend-network
+
+volumes:
+  postgres_data:
+
+networks:
+  exilium-blog-backend-network:
+    driver: bridge
